@@ -123,7 +123,7 @@ namespace LANHelper
                 response.StatusCode = 200;
                 response.ContentType = type;
                 response.ContentEncoding = Encoding.UTF8;
-                if (type.Split('/')[0] == "image")
+                if (type.Split('/')[0] != "text")
                 {
                     img = File.ReadAllBytes(page);
                     using (BinaryWriter writer = new BinaryWriter(response.OutputStream))
@@ -141,7 +141,6 @@ namespace LANHelper
                         writer.Close();
                     }
                 }
-                
                 response.Close();
                 GC.Collect();
             }
@@ -150,6 +149,7 @@ namespace LANHelper
                 Console.WriteLine(ex);
             }
         }
+        
         private void ListenerHandle(IAsyncResult result)
         {
 
@@ -204,8 +204,12 @@ namespace LANHelper
                                     case "request=sleep":
                                         SetSuspendState(false, true, true);
                                         break;
+                                    case "request=screenshot":
+                                        while (!Screenshort());
+                                        LoadPage(context, path, type);
+                                        break;
                                 }
-                                LoadPage(context ,path, type);
+                                context.Response.Close();
                             }
                             break;
                         case "GET":
@@ -281,12 +285,29 @@ namespace LANHelper
             }
             return IPList;
         }
+        private bool Screenshort()
+        {
+            Screen scr = Screen.PrimaryScreen;
+            Rectangle rc = scr.Bounds;
+            int iWidth = rc.Width;
+            int iHeight = rc.Height;
+            byte[] bt = null;
+            //创建一个和屏幕一样大的Bitmap            
+            Image screenshot = new Bitmap(iWidth, iHeight);
+            //从一个继承自Image类的对象中创建Graphics对象            
+            Graphics g = Graphics.FromImage(screenshot);
+            //抓屏并拷贝到myimage里            
+            g.CopyFromScreen(new Point(0, 0), new Point(0, 0), new Size(iWidth, iHeight));
+            screenshot.Save(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "screenshot.jpg"));
+            return true;
+        }
         private void Form1_Load(object sender, EventArgs e)
         {
             this.notifyIcon1.ContextMenuStrip = contextMenuStrip1;
             RunningPort = textBox1.Text;
             changeport();
             Visible = false;
+            
         }
 
         private void notifyIcon1_MouseDoubleClick(object sender, MouseEventArgs e)
@@ -303,6 +324,9 @@ namespace LANHelper
 
         private void 退出ToolStripMenuItem_Click(object sender, EventArgs e)
         {
+            RunCommand("netsh http delete urlacl url = http://*:" + RunningPort + "/" + Environment.NewLine +
+                    "netsh advfirewall firewall delete rule name=\"LANHelper\"");
+            notifyIcon1.Visible = false;
             Environment.Exit(0);
         }
     }
