@@ -2,11 +2,7 @@
 <html lang="zh-CN">
 	<head>
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
-		<script type="text/javascript">
-			if (window.history.replaceState) {
-				window.history.replaceState(null, null, window.location.href)
-			};
-		</script>
+		<script type="text/javascript" src="main.js"></script>
 		</script>
 		<link rel="stylesheet" type="text/css" href="style.css">
 		</link>
@@ -50,18 +46,7 @@
 			</div>
 		</div>
 		<div id="screenshot" class="banner">
-			<br>
+			<img id="sc" src="" style="width: auto;height: auto;max-width: 100%;">
 		</div>
-		<script type="text/javascript">
-			function ScreenShot() {
-				var myParent = document.getElementById("screenshot");
-				myParent.removeChild(myParent.firstChild) ;
-				var sc = document.createElement("img");
-				myParent.appendChild(sc);
-				sc.style = "width: auto;height: auto;max-width: 100%;"
-				var timestamp = new Date().getTime() ;
-				sc.src = "./screenshot.jpg?t=" + timestamp
-			}
-		</script>
 	</body>
 	<html>

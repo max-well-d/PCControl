@@ -7,6 +7,7 @@ using System.Windows.Forms;
 using System.Runtime.InteropServices;
 using System.Diagnostics;
 using System.Drawing;
+using Microsoft.Win32;
 
 namespace LANHelper
 {
@@ -33,7 +34,10 @@ namespace LANHelper
 
         public HttpListener listener;
 
-        private Dictionary<string, string> extensions = new Dictionary<string, string>()
+        private readonly RegistryKey registryKey = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run", true);
+        private static readonly string ToolName = "LANHelper.exe";
+
+        private readonly Dictionary<string, string>  extensions = new Dictionary<string, string>()
         { 
             //{ "extension", "content type" }
             { "htm", "text/html" },
@@ -66,7 +70,7 @@ namespace LANHelper
         public void StartHttpListen(string port)
         {
             listener = new HttpListener();
-            listener.Prefixes.Add("http://*:" + port +"/");
+            listener.Prefixes.Add("http://*:" + port + "/");
             listener.Start();
             listener.BeginGetContext(ListenerHandle, listener);
         }
@@ -81,7 +85,7 @@ namespace LANHelper
             p.StartInfo.RedirectStandardError = true;
             p.StartInfo.RedirectStandardInput = true;
             p.StartInfo.RedirectStandardOutput = true;
-            
+
             p.Start();
             p.StandardInput.WriteLine(Command);
             p.StandardInput.AutoFlush = true;
@@ -111,7 +115,7 @@ namespace LANHelper
             {
                 textBox1.Text = "11451";
             }
- 
+
         }
         private void LoadPage(HttpListenerContext context, string page, string type)
         {
@@ -149,7 +153,7 @@ namespace LANHelper
                 Console.WriteLine(ex);
             }
         }
-        
+
         private void ListenerHandle(IAsyncResult result)
         {
 
@@ -158,7 +162,7 @@ namespace LANHelper
                 if (listener.IsListening)
                 {
                     listener.BeginGetContext(ListenerHandle, result);
-                    
+
                     HttpListenerContext context = listener.EndGetContext(result);
                     HttpListenerRequest request = context.Request;
                     string content = "";
@@ -177,6 +181,7 @@ namespace LANHelper
 
                     string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, filename);
 
+                    
 
                     switch (request.HttpMethod)
                     {
@@ -201,11 +206,14 @@ namespace LANHelper
                                     case "request=lock":
                                         LockWorkStation();
                                         break;
+                                    case "request=screenclose":
+                                        Invoke(new MethodInvoker(delegate { SendMessage(Handle, 0x112, 0xF170, 2);}));
+                                        break;
                                     case "request=sleep":
                                         SetSuspendState(false, true, true);
                                         break;
                                     case "request=screenshot":
-                                        while (!Screenshort());
+                                        while (!Screenshort()) ;
                                         LoadPage(context, path, type);
                                         break;
                                 }
@@ -216,13 +224,13 @@ namespace LANHelper
                             {
                                 try
                                 {
-                                    LoadPage(context ,path, type);
+                                    LoadPage(context, path, type);
                                 }
                                 catch (Exception ex)
                                 {
                                     Console.WriteLine(ex.Message);
                                 }
-                            
+
                             }
                             break;
                     }
@@ -235,7 +243,7 @@ namespace LANHelper
             }
         }
 
-        private void changeport()
+        private void Changeport()
         {
             string port = textBox1.Text;
             if (IsInt(port))
@@ -251,9 +259,14 @@ namespace LANHelper
                     "netsh advfirewall firewall add rule name=LANHelper dir=in action=allow protocol=TCP localport=" + port + Environment.NewLine +
                     "netsh advfirewall firewall add rule name=LANHelper dir=out action=allow protocol=TCP localport=" + port);
                 StartHttpListen(port);
+                RunningPort = port;
+                if (开机启动ToolStripMenuItem.Checked)
+                {
+                    registryKey.SetValue(ToolName, $"{Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ToolName)} /{RunningPort}");
+                }
                 List<string> list = GetLocalIpAddress(port);
                 textBox2.Text = string.Join(Environment.NewLine, list.ToArray());
-                RunningPort = port;
+
             }
             else
             {
@@ -263,7 +276,7 @@ namespace LANHelper
 
         private void Button1_Click(object sender, EventArgs e)
         {
-            changeport();
+            Changeport();
             Visible = false;
         }
         private void Form1_FormClosing(object sender, FormClosingEventArgs e)
@@ -280,8 +293,8 @@ namespace LANHelper
             List<string> IPList = new List<string>();
             for (int i = 0; i < addresses.Length; i++)
             {
-                if(addresses[i].AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
-                    IPList.Add("http://"+addresses[i].ToString() + ":" + port);
+                if (addresses[i].AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                    IPList.Add("http://" + addresses[i].ToString() + ":" + port);
             }
             return IPList;
         }
@@ -291,7 +304,6 @@ namespace LANHelper
             Rectangle rc = scr.Bounds;
             int iWidth = rc.Width;
             int iHeight = rc.Height;
-            byte[] bt = null;
             //创建一个和屏幕一样大的Bitmap            
             Image screenshot = new Bitmap(iWidth, iHeight);
             //从一个继承自Image类的对象中创建Graphics对象            
@@ -303,11 +315,21 @@ namespace LANHelper
         }
         private void Form1_Load(object sender, EventArgs e)
         {
+            if (registryKey.GetValue(ToolName) != null)
+            {
+                开机启动ToolStripMenuItem.Checked = true;
+                string value = registryKey.GetValue(ToolName).ToString();
+                value = value.Split('/')[value.Split('/').Length - 1];
+                textBox1.Text = value;
+
+            }
             this.notifyIcon1.ContextMenuStrip = contextMenuStrip1;
             RunningPort = textBox1.Text;
-            changeport();
+
+            Changeport();
+
             Visible = false;
-            
+
         }
 
         private void notifyIcon1_MouseDoubleClick(object sender, MouseEventArgs e)
@@ -328,6 +350,20 @@ namespace LANHelper
                     "netsh advfirewall firewall delete rule name=\"LANHelper\"");
             notifyIcon1.Visible = false;
             Environment.Exit(0);
+        }
+
+        private void 开机启动ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (开机启动ToolStripMenuItem.Checked)
+            {
+                registryKey.DeleteValue(ToolName);
+                开机启动ToolStripMenuItem.Checked = false;
+            }
+            else
+            {
+                registryKey.SetValue(ToolName, $"{Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ToolName)} /{RunningPort}");
+                开机启动ToolStripMenuItem.Checked = true;
+            }
         }
     }
 
