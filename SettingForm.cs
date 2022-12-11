@@ -11,16 +11,14 @@ using Microsoft.Win32;
 
 namespace LANHelper
 {
-    public partial class Form1 : Form
+    public partial class SettingForm : Form
     {
-        public Form1()
+        public SettingForm()
         {
             InitializeComponent();
             WindowState = FormWindowState.Minimized;
         }
 
-        [DllImport("user32.dll")]
-        public static extern bool ReleaseCapture();
         [DllImport("user32.dll")]
         public static extern bool SendMessage(IntPtr hwnd, int wMsg, int wParam, int lParam);
         [DllImport("user32")]
@@ -36,18 +34,19 @@ namespace LANHelper
 
         public HttpListener listener;
         private readonly RegistryKey registryKey = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run", true);
-        private static readonly string ToolName = "LANHelper.exe";
+        private static readonly string ToolName = "PCControl.exe";
 
         private readonly Dictionary<string, string>  extensions = new Dictionary<string, string>()
         { 
             //{ "extension", "content type" }
+            //text
             { "htm", "text/html" },
             { "html", "text/html" },
             { "xml", "text/xml" },
             { "txt", "text/plain" },
             { "css", "text/css" },
             {"js","text/javascript" },
-
+            //media
             { "png", "image/png" },
             { "gif", "image/gif" },
             { "jpg", "image/jpg" },
@@ -72,7 +71,15 @@ namespace LANHelper
         {
             listener = new HttpListener();
             listener.Prefixes.Add("http://*:" + port + "/");
-            listener.Start();
+            try
+            {
+                listener.Start();
+            }
+            catch(Exception ex)
+            {
+                MessageBox.Show(ex.ToString(), "ERROR",MessageBoxButtons.OK,MessageBoxIcon.Error);
+                Environment.Exit(0);
+            }
             listener.BeginGetContext(ListenerHandle, listener);
         }
 
@@ -137,6 +144,7 @@ namespace LANHelper
                     response.ContentEncoding = Encoding.UTF8;
                     if (type.Split('/')[0] != "text")
                     {
+                        //多媒体用字节转二进制传输
                         img = File.ReadAllBytes(page);
                         using (BinaryWriter writer = new BinaryWriter(response.OutputStream))
                         {
@@ -146,6 +154,7 @@ namespace LANHelper
                     }
                     else
                     {
+                        //文本直接传输
                         ret = File.ReadAllText(page);
                         using (StreamWriter writer = new StreamWriter(response.OutputStream, Encoding.UTF8))
                         {
@@ -176,9 +185,7 @@ namespace LANHelper
                     HttpListenerRequest request = context.Request;
                     string content = "";
 
-                    //string filename = context.Request.Url.AbsolutePath.Trim('/');
                     string filename = Path.GetFileName(context.Request.Url.AbsolutePath);
-                    Console.WriteLine(filename);
                     if (filename == "")
                     {
                         filename = "index.html";
@@ -191,7 +198,6 @@ namespace LANHelper
                     }
 
                     string path = Path.Combine(ServerPath, filename);
-                    Console.WriteLine(path);
                     switch (request.HttpMethod)
                     {
                         case "POST":
@@ -262,6 +268,7 @@ namespace LANHelper
                 if (port == RunningPort && listener != null) return;
                 if (listener != null)
                 {
+                    listener.Stop();
                     RunCommand("netsh http delete urlacl url = http://*:" + RunningPort + "/" + Environment.NewLine +
                     "netsh advfirewall firewall delete rule name=\"LANHelper\"");
                 }
@@ -271,7 +278,7 @@ namespace LANHelper
                     "netsh advfirewall firewall add rule name=LANHelper dir=out action=allow protocol=TCP localport=" + port);
                 StartHttpListen(port);
                 RunningPort = port;
-                if (开机启动ToolStripMenuItem.Checked)
+                if (BWSToolStripMenuItem.Checked)
                 {
                     registryKey.SetValue(ToolName, $"{Path.Combine(ServerPath, ToolName)} /{RunningPort}");
                 }
@@ -288,7 +295,6 @@ namespace LANHelper
         private void Button1_Click(object sender, EventArgs e)
         {
             Changeport();
-            Visible = false;
         }
         private void Form1_FormClosing(object sender, FormClosingEventArgs e)
         {
@@ -315,12 +321,9 @@ namespace LANHelper
             Screen scr = Screen.PrimaryScreen;
             Rectangle rc = scr.Bounds;
             int iWidth = rc.Width;
-            int iHeight = rc.Height;
-            //创建一个和屏幕一样大的Bitmap            
-            Image screenshot = new Bitmap(iWidth, iHeight);
-            //从一个继承自Image类的对象中创建Graphics对象            
-            Graphics g = Graphics.FromImage(screenshot);
-            //抓屏并拷贝到myimage里            
+            int iHeight = rc.Height;        
+            Image screenshot = new Bitmap(iWidth, iHeight);         
+            Graphics g = Graphics.FromImage(screenshot);         
             g.CopyFromScreen(new Point(0, 0), new Point(0, 0), new Size(iWidth, iHeight));
             screenshot.Save(path);
         }
@@ -328,7 +331,7 @@ namespace LANHelper
         {
             if (registryKey.GetValue(ToolName) != null)
             {
-                开机启动ToolStripMenuItem.Checked = true;
+                BWSToolStripMenuItem.Checked = true;
                 string value = registryKey.GetValue(ToolName).ToString();
                 value = value.Split('/')[value.Split('/').Length - 1];
                 textBox1.Text = value;
@@ -355,7 +358,7 @@ namespace LANHelper
                 Visible = false;
         }
 
-        private void 退出ToolStripMenuItem_Click(object sender, EventArgs e)
+        private void ExitToolStripMenuItem_Click(object sender, EventArgs e)
         {
             RunCommand("netsh http delete urlacl url = http://*:" + RunningPort + "/" + Environment.NewLine +
                     "netsh advfirewall firewall delete rule name=\"LANHelper\"");
@@ -363,18 +366,23 @@ namespace LANHelper
             Environment.Exit(0);
         }
 
-        private void 开机启动ToolStripMenuItem_Click(object sender, EventArgs e)
+        private void BWSToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            if (开机启动ToolStripMenuItem.Checked)
+            if (BWSToolStripMenuItem.Checked)
             {
                 registryKey.DeleteValue(ToolName);
-                开机启动ToolStripMenuItem.Checked = false;
+                BWSToolStripMenuItem.Checked = false;
             }
             else
             {
                 registryKey.SetValue(ToolName, $"{Path.Combine(ServerPath, ToolName)} /{RunningPort}");
-                开机启动ToolStripMenuItem.Checked = true;
+                BWSToolStripMenuItem.Checked = true;
             }
+        }
+
+        private void SettingToolStripMenuItem_MouseUp(object sender, MouseEventArgs e)
+        {
+            notifyIcon1_MouseDoubleClick(sender, e);
         }
     }
 

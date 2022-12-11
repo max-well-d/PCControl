@@ -8,7 +8,7 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 
-namespace LANHelper.Properties {
+namespace PCControl.Properties {
     
     
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]

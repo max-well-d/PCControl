@@ -5,12 +5,12 @@ using System.Runtime.InteropServices;
 // 有关程序集的一般信息由以下
 // 控制。更改这些特性值可修改
 // 与程序集关联的信息。
-[assembly: AssemblyTitle("LANHelper")]
-[assembly: AssemblyDescription("")]
+[assembly: AssemblyTitle("PCControl")]
+[assembly: AssemblyDescription("局域网电脑控制小工具")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("LANHelper")]
-[assembly: AssemblyCopyright("Copyright © th7 2022")]
+[assembly: AssemblyCompany("Nolimit LTD")]
+[assembly: AssemblyProduct("PCControl")]
+[assembly: AssemblyCopyright("")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
@@ -20,7 +20,7 @@ using System.Runtime.InteropServices;
 [assembly: ComVisible(false)]
 
 // 如果此项目向 COM 公开，则下列 GUID 用于类型库的 ID
-[assembly: Guid("4b30315a-6cc1-42f0-b7a9-950105f2ccda")]
+[assembly: Guid("11451419-1981-0114-5141-919810114514")]
 
 // 程序集的版本信息由下列四个值组成: 
 //
@@ -32,5 +32,5 @@ using System.Runtime.InteropServices;
 //可以指定所有这些值，也可以使用“生成号”和“修订号”的默认值
 //通过使用 "*"，如下所示:
 // [assembly: AssemblyVersion("1.0.*")]
-[assembly: AssemblyVersion("1.0.0.0")]
-[assembly: AssemblyFileVersion("1.0.0.0")]
+[assembly: AssemblyVersion("0.1.0.0")]
+[assembly: AssemblyFileVersion("0.1.0.0")]
