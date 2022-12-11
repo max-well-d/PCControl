@@ -33,7 +33,6 @@ namespace LANHelper
         private string RunningPort;
 
         public HttpListener listener;
-
         private readonly RegistryKey registryKey = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run", true);
         private static readonly string ToolName = "LANHelper.exe";
 
@@ -124,27 +123,36 @@ namespace LANHelper
                 string ret = "";
                 byte[] img;
                 HttpListenerResponse response = context.Response;
-                response.StatusCode = 200;
-                response.ContentType = type;
-                response.ContentEncoding = Encoding.UTF8;
-                if (type.Split('/')[0] != "text")
+
+                if (!File.Exists(page))
                 {
-                    img = File.ReadAllBytes(page);
-                    using (BinaryWriter writer = new BinaryWriter(response.OutputStream))
-                    {
-                        writer.Write(img);
-                        writer.Close();
-                    }
+                    response.StatusCode = 404;
                 }
                 else
                 {
-                    ret = File.ReadAllText(page);
-                    using (StreamWriter writer = new StreamWriter(response.OutputStream, Encoding.UTF8))
+                    response.StatusCode = 200;
+                    response.ContentType = type;
+                    response.ContentEncoding = Encoding.UTF8;
+                    if (type.Split('/')[0] != "text")
                     {
-                        writer.Write(ret);
-                        writer.Close();
+                        img = File.ReadAllBytes(page);
+                        using (BinaryWriter writer = new BinaryWriter(response.OutputStream))
+                        {
+                            writer.Write(img);
+                            writer.Close();
+                        }
+                    }
+                    else
+                    {
+                        ret = File.ReadAllText(page);
+                        using (StreamWriter writer = new StreamWriter(response.OutputStream, Encoding.UTF8))
+                        {
+                            writer.Write(ret);
+                            writer.Close();
+                        }
                     }
                 }
+
                 response.Close();
                 GC.Collect();
             }
@@ -162,7 +170,6 @@ namespace LANHelper
                 if (listener.IsListening)
                 {
                     listener.BeginGetContext(ListenerHandle, result);
-
                     HttpListenerContext context = listener.EndGetContext(result);
                     HttpListenerRequest request = context.Request;
                     string content = "";
@@ -212,16 +219,18 @@ namespace LANHelper
                                     case "request=sleep":
                                         SetSuspendState(false, true, true);
                                         break;
-                                    case "request=screenshot":
-                                        while (!Screenshort()) ;
-                                        LoadPage(context, path, type);
-                                        break;
                                 }
                                 context.Response.Close();
                             }
                             break;
                         case "GET":
                             {
+                                switch (filename)
+                                {
+                                    case "screenshot.jpg":
+                                        Screenshort();
+                                        break;
+                                }
                                 try
                                 {
                                     LoadPage(context, path, type);
@@ -298,8 +307,9 @@ namespace LANHelper
             }
             return IPList;
         }
-        private bool Screenshort()
+        private void Screenshort()
         {
+            string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "screenshot.jpg");
             Screen scr = Screen.PrimaryScreen;
             Rectangle rc = scr.Bounds;
             int iWidth = rc.Width;
@@ -310,8 +320,7 @@ namespace LANHelper
             Graphics g = Graphics.FromImage(screenshot);
             //抓屏并拷贝到myimage里            
             g.CopyFromScreen(new Point(0, 0), new Point(0, 0), new Size(iWidth, iHeight));
-            screenshot.Save(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "screenshot.jpg"));
-            return true;
+            screenshot.Save(path);
         }
         private void Form1_Load(object sender, EventArgs e)
         {
