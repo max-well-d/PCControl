@@ -30,6 +30,8 @@ namespace LANHelper
         [DllImport("PowrProf.dll", CharSet = CharSet.Auto, ExactSpelling = true)]
         public static extern bool SetSuspendState(bool hiberate, bool forceCritical, bool disableWakeEvent);
 
+        public static readonly string ServerPath = AppDomain.CurrentDomain.BaseDirectory;
+
         private string RunningPort;
 
         public HttpListener listener;
@@ -174,7 +176,9 @@ namespace LANHelper
                     HttpListenerRequest request = context.Request;
                     string content = "";
 
-                    string filename = context.Request.Url.AbsolutePath.Trim('/');
+                    //string filename = context.Request.Url.AbsolutePath.Trim('/');
+                    string filename = Path.GetFileName(context.Request.Url.AbsolutePath);
+                    Console.WriteLine(filename);
                     if (filename == "")
                     {
                         filename = "index.html";
@@ -186,10 +190,8 @@ namespace LANHelper
                         type = extensions[type_list[type_list.Length - 1]];
                     }
 
-                    string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, filename);
-
-                    
-
+                    string path = Path.Combine(ServerPath, filename);
+                    Console.WriteLine(path);
                     switch (request.HttpMethod)
                     {
                         case "POST":
@@ -271,7 +273,7 @@ namespace LANHelper
                 RunningPort = port;
                 if (开机启动ToolStripMenuItem.Checked)
                 {
-                    registryKey.SetValue(ToolName, $"{Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ToolName)} /{RunningPort}");
+                    registryKey.SetValue(ToolName, $"{Path.Combine(ServerPath, ToolName)} /{RunningPort}");
                 }
                 List<string> list = GetLocalIpAddress(port);
                 textBox2.Text = string.Join(Environment.NewLine, list.ToArray());
@@ -309,7 +311,7 @@ namespace LANHelper
         }
         private void Screenshort()
         {
-            string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "screenshot.jpg");
+            string path = Path.Combine(ServerPath, "screenshot.jpg");
             Screen scr = Screen.PrimaryScreen;
             Rectangle rc = scr.Bounds;
             int iWidth = rc.Width;
@@ -370,7 +372,7 @@ namespace LANHelper
             }
             else
             {
-                registryKey.SetValue(ToolName, $"{Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ToolName)} /{RunningPort}");
+                registryKey.SetValue(ToolName, $"{Path.Combine(ServerPath, ToolName)} /{RunningPort}");
                 开机启动ToolStripMenuItem.Checked = true;
             }
         }
