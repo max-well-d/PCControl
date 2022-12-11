@@ -23,11 +23,14 @@
 			<br>
 			<div class="centered">
 				<form action="" method="post" class="form" target="formsubmit">
-					<button name="request" value="sleep" class="large green button">
-						睡眠
+					<button name="request" value="screenclose" class="large green button">
+						黑屏
 					</button>
 					<button name="request" value="lock" class="large green button">
 						锁定
+					</button>
+					<button name="request" value="sleep" class="large blue button">
+						睡眠
 					</button>
 					<button name="request" value="exit" class="large blue button">
 						注销
@@ -38,15 +41,14 @@
 					<button name="request" value="shutdown" class="large red button">
 						关机
 					</button>
-					<br>
-					<button name="request" value="screenshot" class="large button" onclick="ScreenShot()">
+				</form>
+				<button name="request" value="screenshot" class="large button" onclick="ScreenShot()">
 						屏幕截图
 					</button>
-				</form>
 			</div>
 		</div>
 		<div id="screenshot" class="banner">
-			<img id="sc" src="" style="width: auto;height: auto;max-width: 100%;">
+			<img id="sc" src="" class="sc">
 		</div>
 	</body>
 	<html>
