@@ -384,6 +384,11 @@ namespace LANHelper
         {
             notifyIcon1_MouseDoubleClick(sender, e);
         }
+
+        private void button2_Click(object sender, EventArgs e)
+        {
+            Visible = false;
+        }
     }
 
 }
