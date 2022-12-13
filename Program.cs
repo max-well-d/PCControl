@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-namespace LANHelper
+namespace PCControl
 {
     internal static class Program
     {

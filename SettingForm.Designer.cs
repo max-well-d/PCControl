@@ -1,4 +1,4 @@
-﻿namespace LANHelper
+﻿namespace PCControl
 {
     partial class SettingForm
     {

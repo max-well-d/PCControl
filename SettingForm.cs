@@ -9,7 +9,7 @@ using System.Diagnostics;
 using System.Drawing;
 using Microsoft.Win32;
 
-namespace LANHelper
+namespace PCControl
 {
     public partial class SettingForm : Form
     {
@@ -18,9 +18,15 @@ namespace LANHelper
             InitializeComponent();
             WindowState = FormWindowState.Minimized;
         }
+        [DllImport("user32.dll")]
+        static extern void mouse_event(Int32 dwFlags, Int32 dx, Int32 dy, Int32 dwData, UIntPtr dwExtraInfo);
+        private const int MOUSEEVENTF_MOVE = 0x0001;
 
         [DllImport("user32.dll")]
         public static extern bool SendMessage(IntPtr hwnd, int wMsg, int wParam, int lParam);
+        private const int vMsg = 0x112;
+        private const int wParam = 0xF170;
+        private const int OFF = 2;
         [DllImport("user32")]
         public static extern bool ExitWindowsEx(uint uFlags, uint dwReason);
         [DllImport("user32")]
@@ -184,7 +190,6 @@ namespace LANHelper
                     HttpListenerContext context = listener.EndGetContext(result);
                     HttpListenerRequest request = context.Request;
                     string content = "";
-
                     string filename = Path.GetFileName(context.Request.Url.AbsolutePath);
                     if (filename == "")
                     {
@@ -206,27 +211,41 @@ namespace LANHelper
                                 StreamReader reader = new StreamReader(stream, Encoding.UTF8);
                                 content = reader.ReadToEnd();
 
+                                using (StreamWriter streamWriter = new StreamWriter(Path.Combine(ServerPath, "log.txt"), true, Encoding.UTF8))
+                                {
+                                    string IP = context.Request.RemoteEndPoint.Address.ToString();
+                                    string time = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss:fff");
+                                    streamWriter.WriteLine($"{time}: {content} by {IP}");
+                                    streamWriter.Close();
+                                }
                                 switch (content)
                                 {
+                                    case "request=wakeup":
+                                        mouse_event(MOUSEEVENTF_MOVE, 0, 1, 0, UIntPtr.Zero);
+                                        mouse_event(MOUSEEVENTF_MOVE, 0, -1, 0, UIntPtr.Zero);
+                                        break;
                                     case "request=shutdown":
-
                                         Process.Start("shutdown", "/s /t 0");
+                                        EXIT();
                                         break;
                                     case "request=reboot":
                                         Process.Start("shutdown", "/r /t 0");
+                                        EXIT();
                                         break;
                                     case "request=exit":
                                         ExitWindowsEx(0, 0);
+                                        EXIT();
                                         break;
                                     case "request=lock":
                                         LockWorkStation();
                                         break;
                                     case "request=screenclose":
-                                        Invoke(new MethodInvoker(delegate { SendMessage(Handle, 0x112, 0xF170, 2);}));
+                                        Invoke(new MethodInvoker(delegate { SendMessage(Handle, vMsg, wParam, OFF);}));
                                         break;
                                     case "request=sleep":
                                         SetSuspendState(false, true, true);
                                         break;
+                                    
                                 }
                                 context.Response.Close();
                             }
@@ -270,12 +289,12 @@ namespace LANHelper
                 {
                     listener.Stop();
                     RunCommand("netsh http delete urlacl url = http://*:" + RunningPort + "/" + Environment.NewLine +
-                    "netsh advfirewall firewall delete rule name=\"LANHelper\"");
+                    "netsh advfirewall firewall delete rule name=\"PCControl\"");
                 }
                 RunCommand("netsh http delete urlacl url = http://*:" + port + "/" + Environment.NewLine +
                     "netsh http add urlacl url=http://*:" + port + "/ user=Everyone" + Environment.NewLine +
-                    "netsh advfirewall firewall add rule name=LANHelper dir=in action=allow protocol=TCP localport=" + port + Environment.NewLine +
-                    "netsh advfirewall firewall add rule name=LANHelper dir=out action=allow protocol=TCP localport=" + port);
+                    "netsh advfirewall firewall add rule name=PCControl dir=in action=allow protocol=TCP localport=" + port + Environment.NewLine +
+                    "netsh advfirewall firewall add rule name=PCControl dir=out action=allow protocol=TCP localport=" + port);
                 StartHttpListen(port);
                 RunningPort = port;
                 if (BWSToolStripMenuItem.Checked)
@@ -318,15 +337,16 @@ namespace LANHelper
         private void Screenshort()
         {
             string path = Path.Combine(ServerPath, "screenshot.jpg");
-            Screen scr = Screen.PrimaryScreen;
-            Rectangle rc = scr.Bounds;
+            Rectangle rc = SystemInformation.VirtualScreen;
             int iWidth = rc.Width;
-            int iHeight = rc.Height;        
-            Image screenshot = new Bitmap(iWidth, iHeight);         
-            Graphics g = Graphics.FromImage(screenshot);         
+            int iHeight =rc.Height;
+            Image screenshot = new Bitmap(rc.Width, rc.Height);         
+            Graphics g = Graphics.FromImage(screenshot); 
             g.CopyFromScreen(new Point(0, 0), new Point(0, 0), new Size(iWidth, iHeight));
             screenshot.Save(path);
         }
+
+
         private void Form1_Load(object sender, EventArgs e)
         {
             if (registryKey.GetValue(ToolName) != null)
@@ -358,12 +378,17 @@ namespace LANHelper
                 Visible = false;
         }
 
-        private void ExitToolStripMenuItem_Click(object sender, EventArgs e)
+        private void EXIT()
         {
             RunCommand("netsh http delete urlacl url = http://*:" + RunningPort + "/" + Environment.NewLine +
-                    "netsh advfirewall firewall delete rule name=\"LANHelper\"");
+        "netsh advfirewall firewall delete rule name=\"PCControl\"");
             notifyIcon1.Visible = false;
             Environment.Exit(0);
+        }
+
+        private void ExitToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            EXIT();
         }
 
         private void BWSToolStripMenuItem_Click(object sender, EventArgs e)
