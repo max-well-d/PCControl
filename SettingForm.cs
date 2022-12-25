@@ -34,7 +34,28 @@ namespace PCControl
         [DllImport("PowrProf.dll", CharSet = CharSet.Auto, ExactSpelling = true)]
         public static extern bool SetSuspendState(bool hiberate, bool forceCritical, bool disableWakeEvent);
 
+        public struct MEMORYSTATUSEX
+        {
+            public int dwLength;
+            public int dwMemoryLoad;
+            public ulong ullTotalPhys;
+            public ulong ullAvailPhys;
+            public ulong ullTotalPageFile;
+            public ulong ullAvailPageFile;
+            public ulong ullTotalVirtual;
+            public ulong ullAvailVirtual;
+            public ulong ullAvailExtendedVirtual;
+        };
+        [DllImport("Kernel32.dll")]
+        static extern bool GlobalMemoryStatusEx(ref MEMORYSTATUSEX lpbuffer);
+
+        PerformanceCounter cpuCounter = new PerformanceCounter("Processor", "% Processor Time", "_Total");
+        PerformanceCounter ramCounter1 = new PerformanceCounter("Memory", "Available MBytes");
+
+        public ulong totalRAM;
+
         public static readonly string ServerPath = AppDomain.CurrentDomain.BaseDirectory;
+        //public static readonly string wwwroot = Path.Combine(ServerPath,"wwwroot");
 
         private string RunningPort;
 
@@ -131,52 +152,70 @@ namespace PCControl
             }
 
         }
-        private void LoadPage(HttpListenerContext context, string page, string type)
+        private void LoadPage(HttpListenerContext context, string data, string type)
         {
             try
             {
                 string ret = "";
                 byte[] img;
                 HttpListenerResponse response = context.Response;
-
-                if (!File.Exists(page))
+                if (context.Request.HttpMethod == "GET")
                 {
-                    response.StatusCode = 404;
+                    if (!File.Exists(data))
+                    {
+                        response.StatusCode = 404;
+                    }
+                    else
+                    {
+                        response.StatusCode = 200;
+                        response.ContentType = type;
+                        response.ContentEncoding = Encoding.UTF8;
+                        if (type.Split('/')[0] != "text")
+                        {
+                            //多媒体用字节转二进制传输
+                            img = File.ReadAllBytes(data);
+                            using (BinaryWriter writer = new BinaryWriter(response.OutputStream))
+                            {
+                                writer.Write(img);
+                                writer.Close();
+                            }
+                        }
+                        else
+                        {
+                            //文本直接传输
+                            ret = File.ReadAllText(data);
+                            using (StreamWriter writer = new StreamWriter(response.OutputStream, Encoding.UTF8))
+                            {
+                                writer.Write(ret);
+                                writer.Close();
+                            }
+                        }
+                    }
                 }
                 else
                 {
                     response.StatusCode = 200;
-                    response.ContentType = type;
+                    response.ContentType = "application/json";
                     response.ContentEncoding = Encoding.UTF8;
-                    if (type.Split('/')[0] != "text")
+                    using (StreamWriter writer = new StreamWriter(response.OutputStream, Encoding.UTF8))
                     {
-                        //多媒体用字节转二进制传输
-                        img = File.ReadAllBytes(page);
-                        using (BinaryWriter writer = new BinaryWriter(response.OutputStream))
-                        {
-                            writer.Write(img);
-                            writer.Close();
-                        }
-                    }
-                    else
-                    {
-                        //文本直接传输
-                        ret = File.ReadAllText(page);
-                        using (StreamWriter writer = new StreamWriter(response.OutputStream, Encoding.UTF8))
-                        {
-                            writer.Write(ret);
-                            writer.Close();
-                        }
+                        writer.Write(data);
+                        writer.Close();
                     }
                 }
-
-                response.Close();
                 GC.Collect();
+                response.Close();
             }
             catch (Exception ex)
             {
                 Console.WriteLine(ex);
             }
+        }
+
+        private string GetPCStatus()
+        {
+            string data = $"{{\"CPU\": \"{(cpuCounter.NextValue()).ToString("F2")}%\", \"RAM\": \"{(totalRAM - ramCounter1.NextValue()).ToString()}MB/{totalRAM}MB\"}}";
+            return data;
         }
 
         private void ListenerHandle(IAsyncResult result)
@@ -210,16 +249,20 @@ namespace PCControl
                                 Stream stream = context.Request.InputStream;
                                 StreamReader reader = new StreamReader(stream, Encoding.UTF8);
                                 content = reader.ReadToEnd();
-
-                                using (StreamWriter streamWriter = new StreamWriter(Path.Combine(ServerPath, "log.txt"), true, Encoding.UTF8))
-                                {
-                                    string IP = context.Request.RemoteEndPoint.Address.ToString();
-                                    string time = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss:fff");
-                                    streamWriter.WriteLine($"{time}: {content} by {IP}");
-                                    streamWriter.Close();
-                                }
+                                if(content != "request=status")
+                                    using (StreamWriter streamWriter = new StreamWriter(Path.Combine(ServerPath, "log.txt"), true, Encoding.UTF8))
+                                    {
+                                        string IP = context.Request.RemoteEndPoint.Address.ToString();
+                                        string time = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss:fff");
+                                        streamWriter.WriteLine($"{time}: {content} by {IP}");
+                                        streamWriter.Close();
+                                    }
                                 switch (content)
                                 {
+                                    case "request=status":
+                                        string data = GetPCStatus();
+                                        LoadPage(context, data, type);
+                                        break;
                                     case "request=wakeup":
                                         mouse_event(MOUSEEVENTF_MOVE, 0, 1, 0, UIntPtr.Zero);
                                         mouse_event(MOUSEEVENTF_MOVE, 0, -1, 0, UIntPtr.Zero);
@@ -278,32 +321,40 @@ namespace PCControl
                 Console.WriteLine(ex);
             }
         }
+        private void IsFirstStart()
+        {
+            if (!File.Exists(Path.Combine(ServerPath, "log.txt")))
+            {
+                File.Create(Path.Combine(ServerPath, "log.txt"));
+                string port = textBox1.Text;
+                RunCommand("netsh http delete urlacl url = http://*:" + port + "/" + Environment.NewLine +
+                "netsh http add urlacl url=http://*:" + port + "/ user=Everyone" + Environment.NewLine +
+                "netsh advfirewall firewall add rule name=PCControl dir=in action=allow localport=" + port + Environment.NewLine +
+                "netsh advfirewall firewall add rule name=PCControl dir=out action=allow localport=" + port);
 
+            }
+        }
         private void Changeport()
         {
             string port = textBox1.Text;
             if (IsInt(port))
             {
                 if (port == RunningPort && listener != null) return;
-                if (listener != null)
-                {
-                    listener.Stop();
-                    RunCommand("netsh http delete urlacl url = http://*:" + RunningPort + "/" + Environment.NewLine +
-                    "netsh advfirewall firewall delete rule name=\"PCControl\"");
-                }
+                listener.Stop();
                 RunCommand("netsh http delete urlacl url = http://*:" + port + "/" + Environment.NewLine +
-                    "netsh http add urlacl url=http://*:" + port + "/ user=Everyone" + Environment.NewLine +
-                    "netsh advfirewall firewall add rule name=PCControl dir=in action=allow protocol=TCP localport=" + port + Environment.NewLine +
-                    "netsh advfirewall firewall add rule name=PCControl dir=out action=allow protocol=TCP localport=" + port);
-                StartHttpListen(port);
+                "netsh advfirewall firewall delete rule name=\"PCControl\"" + Environment.NewLine + 
+                "netsh http delete urlacl url = http://*:" + port + "/" + Environment.NewLine +
+                "netsh http add urlacl url=http://*:" + port + "/ user=Everyone" + Environment.NewLine +
+                "netsh advfirewall firewall add rule name=PCControl dir=in action=allow localport=" + port + Environment.NewLine +
+                "netsh advfirewall firewall add rule name=PCControl dir=out action=allow localport=" + port);
                 RunningPort = port;
+                listener.Start();
                 if (BWSToolStripMenuItem.Checked)
                 {
                     registryKey.SetValue(ToolName, $"{Path.Combine(ServerPath, ToolName)} /{RunningPort}");
                 }
                 List<string> list = GetLocalIpAddress(port);
                 textBox2.Text = string.Join(Environment.NewLine, list.ToArray());
-
             }
             else
             {
@@ -346,7 +397,6 @@ namespace PCControl
             screenshot.Save(path);
         }
 
-
         private void Form1_Load(object sender, EventArgs e)
         {
             if (registryKey.GetValue(ToolName) != null)
@@ -359,11 +409,15 @@ namespace PCControl
             }
             this.notifyIcon1.ContextMenuStrip = contextMenuStrip1;
             RunningPort = textBox1.Text;
-
-            Changeport();
-
+            IsFirstStart();
+            StartHttpListen(RunningPort);
+            List<string> list = GetLocalIpAddress(RunningPort);
+            textBox2.Text = string.Join(Environment.NewLine, list.ToArray());
+            MEMORYSTATUSEX mEMORYSTATUSEX = new MEMORYSTATUSEX
+            {dwLength = 0x40};
+            GlobalMemoryStatusEx(ref mEMORYSTATUSEX);
+            totalRAM = mEMORYSTATUSEX.ullTotalPhys / 1024 / 1024;
             Visible = false;
-
         }
 
         private void notifyIcon1_MouseDoubleClick(object sender, MouseEventArgs e)
@@ -380,8 +434,7 @@ namespace PCControl
 
         private void EXIT()
         {
-            RunCommand("netsh http delete urlacl url = http://*:" + RunningPort + "/" + Environment.NewLine +
-        "netsh advfirewall firewall delete rule name=\"PCControl\"");
+            listener.Close();
             notifyIcon1.Visible = false;
             Environment.Exit(0);
         }
